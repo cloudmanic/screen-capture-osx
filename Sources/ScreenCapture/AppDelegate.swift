@@ -45,6 +45,10 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController.onSettingsRequested = { [weak self] in
             self?.settingsController.show()
         }
+        statusBarController.onImageDropped = { [weak self] url in
+            self?.handleImageDrop(url)
+        }
+
         // Wire up the overlay selection callbacks
         overlayController.onSelectionComplete = { [weak self] rect, windowID in
             self?.handleSelectionComplete(rect, excludingWindow: windowID)
@@ -117,6 +121,43 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         showProgressHUD()
 
         // Upload to S3
+        uploadService.upload(
+            imageData: imageData,
+            filename: filename,
+            progress: { [weak self] progress in
+                self?.progressHUD?.updateProgress(progress)
+            },
+            completion: { [weak self] result in
+                switch result {
+                case .success(let url):
+                    self?.handleUploadSuccess(url: url)
+                case .failure(let error):
+                    self?.handleUploadFailure(error: error)
+                }
+            }
+        )
+    }
+
+    /// Handles an image file dropped onto the status bar icon: reads the file and uploads to S3.
+    private func handleImageDrop(_ fileURL: URL) {
+        if !AppSettings.shared.isConfigured {
+            showNotConfiguredAlert()
+            return
+        }
+
+        guard let imageData = try? Data(contentsOf: fileURL) else {
+            showError("Failed to read image file: \(fileURL.lastPathComponent)")
+            return
+        }
+
+        soundService.playCaptureSound()
+
+        let ext = fileURL.pathExtension.lowercased()
+        let filename = captureService.generateFilename(ext: ext.isEmpty ? "png" : ext)
+        showProgressHUD()
+
+        print("[ScreenCapture] Uploading dropped file: \(fileURL.lastPathComponent) (\(imageData.count) bytes)")
+
         uploadService.upload(
             imageData: imageData,
             filename: filename,

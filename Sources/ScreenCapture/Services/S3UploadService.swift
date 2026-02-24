@@ -17,6 +17,20 @@ class S3UploadService: NSObject {
     private var progressHandler: ((Double) -> Void)?
     private var session: URLSession?
 
+    /// Returns the MIME content type for a given file extension.
+    private func contentType(for extension: String) -> String {
+        switch `extension`.lowercased() {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "tiff", "tif": return "image/tiff"
+        case "bmp": return "image/bmp"
+        case "heic": return "image/heic"
+        default: return "application/octet-stream"
+        }
+    }
+
     /// Uploads the given image data to S3 and returns a pre-signed URL on success.
     /// Progress is reported as a value from 0.0 to 1.0 via the progress callback.
     func upload(
@@ -49,7 +63,8 @@ class S3UploadService: NSObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
-        request.setValue("image/png", forHTTPHeaderField: "Content-Type")
+        let fileExtension = (filename as NSString).pathExtension
+        request.setValue(contentType(for: fileExtension), forHTTPHeaderField: "Content-Type")
         request.setValue("\(imageData.count)", forHTTPHeaderField: "Content-Length")
 
         // Sign the request with AWS Signature V4

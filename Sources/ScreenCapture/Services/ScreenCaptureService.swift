@@ -72,12 +72,13 @@ class ScreenCaptureService {
         return .success(pngData)
     }
 
-    /// Generates a unique filename for a screenshot using the current timestamp and a short UUID.
-    func generateFilename() -> String {
+    /// Generates a unique filename using the current timestamp and a short UUID.
+    /// The extension defaults to "png" but can be overridden for dropped image files.
+    func generateFilename(ext: String = "png") -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
         let timestamp = formatter.string(from: Date())
         let shortUUID = UUID().uuidString.prefix(8).lowercased()
-        return "\(timestamp)_\(shortUUID).png"
+        return "\(timestamp)_\(shortUUID).\(ext)"
     }
 }

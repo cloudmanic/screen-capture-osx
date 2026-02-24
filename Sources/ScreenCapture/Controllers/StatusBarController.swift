@@ -16,11 +16,17 @@ class StatusBarController {
     /// The system status bar item.
     private var statusItem: NSStatusItem?
 
+    /// The drop target overlay for accepting dragged image files.
+    private var dropTargetView: DropTargetView?
+
     /// Called when the user clicks "Capture Region" in the menu.
     var onCaptureRequested: (() -> Void)?
 
     /// Called when the user clicks "Settings..." in the menu.
     var onSettingsRequested: (() -> Void)?
+
+    /// Called when the user drops an image file onto the status bar icon.
+    var onImageDropped: ((URL) -> Void)?
 
     /// Creates the status bar item with an icon and builds the dropdown menu.
     func setup() {
@@ -37,6 +43,17 @@ class StatusBarController {
             } else {
                 button.title = "SC"
             }
+        }
+
+        // Add a transparent drop target overlay to accept image file drags.
+        if let button = statusItem?.button {
+            let dropView = DropTargetView(frame: button.bounds)
+            dropView.autoresizingMask = [.width, .height]
+            dropView.onImageDropped = { [weak self] url in
+                self?.onImageDropped?(url)
+            }
+            button.addSubview(dropView)
+            dropTargetView = dropView
         }
 
         buildMenu()

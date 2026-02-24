@@ -3,7 +3,10 @@ BUILD_DIR_RELEASE = .build/release
 BUILD_DIR_DEBUG = .build/debug
 APP_BUNDLE = $(APP_NAME).app
 
-.PHONY: build debug run install clean sign help
+VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+ZIP_NAME = $(APP_NAME)-$(VERSION).zip
+
+.PHONY: build debug run install clean sign release help
 
 ## Build release version and assemble .app bundle
 build:
@@ -45,10 +48,21 @@ install: sign
 	@cp -r $(APP_BUNDLE) /Applications/
 	@echo "Installed to /Applications/$(APP_BUNDLE)"
 
+## Build release, zip, create GitHub release, and update Cask formula
+release: sign
+	@rm -f $(ZIP_NAME)
+	zip -r $(ZIP_NAME) $(APP_BUNDLE)
+	@SHA=$$(shasum -a 256 $(ZIP_NAME) | awk '{print $$1}'); \
+	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" Casks/screen-capture.rb; \
+	sed -i '' "s/sha256 \".*\"/sha256 \"$$SHA\"/" Casks/screen-capture.rb; \
+	echo "Updated Cask formula: version=$(VERSION) sha256=$$SHA"
+	gh release create v$(VERSION) $(ZIP_NAME) --title "v$(VERSION)" --generate-notes
+	@echo "Release v$(VERSION) published. Run: git add Casks/screen-capture.rb && git commit && git push"
+
 ## Remove build artifacts
 clean:
 	swift package clean
-	rm -rf $(APP_BUNDLE)
+	rm -rf $(APP_BUNDLE) $(APP_NAME)-*.zip
 	@echo "Clean complete"
 
 ## Run tests (requires Xcode for XCTest framework)
@@ -63,6 +77,7 @@ help:
 	@echo "  make run      - Build debug and launch app"
 	@echo "  make sign     - Build release and code sign"
 	@echo "  make install  - Build, sign, and install to /Applications"
+	@echo "  make release  - Build, sign, zip, and publish GitHub release"
 	@echo "  make clean    - Remove all build artifacts"
 	@echo "  make test     - Run tests"
 	@echo "  make help     - Show this help"

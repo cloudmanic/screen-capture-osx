@@ -14,6 +14,19 @@ A lightweight macOS menu bar app that captures screen regions and uploads them t
 - **Keychain storage** for AWS secret key security
 - **Menu bar only** - no dock icon, stays out of your way
 
+## Install via Homebrew
+
+```bash
+brew tap cloudmanic/screen-capture-osx https://github.com/cloudmanic/screen-capture-osx
+brew install --cask screen-capture
+```
+
+To upgrade to a new version:
+
+```bash
+brew upgrade --cask screen-capture
+```
+
 ## Requirements
 
 - macOS 13.0 (Ventura) or later
@@ -37,6 +50,9 @@ make install
 
 # Run tests (requires Xcode)
 make test
+
+# Publish a new GitHub release and update the Homebrew Cask formula
+make release
 
 # Clean build artifacts
 make clean

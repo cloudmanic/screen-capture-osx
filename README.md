@@ -18,6 +18,7 @@ I needed a way to take a quick screenshot, get a direct URL to the image, paste 
 - **Launch at login** support via macOS native login items
 - **Pure Swift AWS Signature V4** implementation with no external dependencies
 - **Keychain storage** for AWS secret key security
+- **Drag-and-drop upload** - drag any image file onto the menu bar icon to upload it
 - **Menu bar only** - no dock icon, stays out of your way
 
 ## Install via Homebrew
@@ -84,6 +85,10 @@ make clean
 
 Press **Escape** to cancel a selection.
 
+### Drag-and-Drop Upload
+
+You can also upload existing image files by dragging them onto the menu bar icon. The file is uploaded to S3 and the pre-signed URL is copied to your clipboard, just like a screen capture. Supported formats: PNG, JPG, GIF, WebP, TIFF, BMP, and HEIC.
+
 ## Settings
 
 | Setting | Description |
@@ -118,6 +123,7 @@ Sources/
       AWSV4Signer.swift          # AWS Signature V4 request signing
       SoundService.swift         # Audio feedback
     Views/
+      DropTargetView.swift        # Drag-and-drop on status bar icon
       SelectionOverlayView.swift # Region selection UI
       SettingsView.swift          # SwiftUI settings form
       ProgressIndicatorView.swift # Upload progress HUD

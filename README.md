@@ -2,6 +2,12 @@
 
 A lightweight macOS menu bar app that captures screen regions and uploads them to AWS S3. After uploading, a pre-signed URL is automatically copied to your clipboard for easy sharing.
 
+## Why This Exists
+
+I've been a happy [CleanShot](https://cleanshot.com/) user for years -- it's a fantastic screenshot tool. But when I started using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) over SSH with Tmux, I hit a wall. CleanShot copies a link to their landing page, not a direct image URL. Claude Code can't do anything useful with that. And in a terminal session, you can't just paste an image from your clipboard.
+
+I needed a way to take a quick screenshot, get a direct URL to the image, paste that URL into Claude Code, and have it actually see the screenshot and take action on it. Pass by reference instead of pass by copy. So I built this: a lightweight tool that captures a region, uploads the image to my own S3 bucket, and puts a direct pre-signed image URL on my clipboard. Now sharing screenshots with Claude Code (or anyone else) is just Cmd+Shift+6 and a paste.
+
 ## Features
 
 - **Global hotkey** (Cmd+Shift+6) to trigger screen capture from anywhere

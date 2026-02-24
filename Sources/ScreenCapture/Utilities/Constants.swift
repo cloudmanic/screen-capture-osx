@@ -39,6 +39,7 @@ struct Constants {
         static let awsRegion = "awsRegion"
         static let soundEnabled = "soundEnabled"
         static let s3PathPrefix = "s3PathPrefix"
+        static let signedUrlExpiration = "signedUrlExpiration"
     }
 
     /// Default values for settings.
@@ -46,5 +47,6 @@ struct Constants {
         static let awsRegion = "us-east-1"
         static let soundEnabled = true
         static let s3PathPrefix = "screenshots/"
+        static let signedUrlExpiration = 3600
     }
 }

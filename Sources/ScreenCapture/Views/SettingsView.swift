@@ -20,8 +20,20 @@ struct SettingsView: View {
     @State private var awsRegion: String = AppSettings.shared.awsRegion
     @State private var s3PathPrefix: String = AppSettings.shared.s3PathPrefix
     @State private var soundEnabled: Bool = AppSettings.shared.soundEnabled
+    @State private var signedUrlExpiration: Int = AppSettings.shared.signedUrlExpiration
     @State private var testResult: String = ""
     @State private var isTesting: Bool = false
+
+    /// Pre-signed URL expiration options (label, seconds).
+    private let expirationOptions: [(String, Int)] = [
+        ("15 minutes", 900),
+        ("30 minutes", 1800),
+        ("1 hour", 3600),
+        ("6 hours", 21600),
+        ("12 hours", 43200),
+        ("24 hours", 86400),
+        ("7 days", 604800),
+    ]
 
     /// Available AWS regions for the dropdown picker.
     private let awsRegions = [
@@ -63,6 +75,19 @@ struct SettingsView: View {
                         .textFieldStyle(.roundedBorder)
 
                     Text("Screenshots will be uploaded to: s3://\(s3Bucket)/\(s3PathPrefix)<filename>.png")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Sharing Section
+                Section("Sharing") {
+                    Picker("Signed URL Expires In", selection: $signedUrlExpiration) {
+                        ForEach(expirationOptions, id: \.1) { option in
+                            Text(option.0).tag(option.1)
+                        }
+                    }
+
+                    Text("Uploaded screenshots are private. The shared URL expires after this duration.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -118,7 +143,7 @@ struct SettingsView: View {
             .padding(.top, 12)
         }
         .padding(20)
-        .frame(width: 500, height: 520)
+        .frame(width: 500, height: 600)
     }
 
     /// Saves all settings to AppSettings (UserDefaults + Keychain for secret key).
@@ -128,6 +153,7 @@ struct SettingsView: View {
         AppSettings.shared.s3Bucket = s3Bucket
         AppSettings.shared.awsRegion = awsRegion
         AppSettings.shared.s3PathPrefix = s3PathPrefix
+        AppSettings.shared.signedUrlExpiration = signedUrlExpiration
         AppSettings.shared.soundEnabled = soundEnabled
 
         // Close the settings window

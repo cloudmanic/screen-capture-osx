@@ -26,7 +26,7 @@ class SettingsWindowController {
             let newWindow = NSWindow(contentViewController: hostingController)
             newWindow.title = "ScreenCapture Settings"
             newWindow.styleMask = [.titled, .closable]
-            newWindow.setContentSize(NSSize(width: 500, height: 520))
+            newWindow.setContentSize(NSSize(width: 500, height: 600))
             newWindow.isReleasedWhenClosed = false
             window = newWindow
         }

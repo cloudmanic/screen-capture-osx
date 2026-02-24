@@ -15,7 +15,7 @@ build:
 	@cp Resources/Info.plist $(APP_BUNDLE)/Contents/
 	@echo "Build complete: $(APP_BUNDLE)"
 
-## Build debug version and assemble .app bundle
+## Build debug version, assemble .app bundle, and code sign with entitlements
 debug:
 	swift build -c debug
 	@echo "Assembling $(APP_BUNDLE) (debug)..."
@@ -23,6 +23,9 @@ debug:
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
 	@cp $(BUILD_DIR_DEBUG)/$(APP_NAME) $(APP_BUNDLE)/Contents/MacOS/
 	@cp Resources/Info.plist $(APP_BUNDLE)/Contents/
+	codesign --force --deep --sign - \
+		--entitlements Resources/ScreenCapture.entitlements \
+		$(APP_BUNDLE)
 	@echo "Debug build complete: $(APP_BUNDLE)"
 
 ## Build debug and run the app

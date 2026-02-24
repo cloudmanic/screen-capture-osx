@@ -4,7 +4,7 @@
 //
 // Description: Uploads screenshot PNG data to AWS S3 using a signed PUT request.
 // Tracks upload progress via URLSessionTaskDelegate and reports it via callback.
-// The uploaded file is set to public-read so the resulting URL can be shared.
+// After upload, generates a pre-signed GET URL for sharing.
 //
 // Created: 2026-02-24
 // Copyright 2026 Cloudmanic Labs, LLC. All rights reserved.
@@ -17,7 +17,7 @@ class S3UploadService: NSObject {
     private var progressHandler: ((Double) -> Void)?
     private var session: URLSession?
 
-    /// Uploads the given image data to S3 and returns the public URL on success.
+    /// Uploads the given image data to S3 and returns a pre-signed URL on success.
     /// Progress is reported as a value from 0.0 to 1.0 via the progress callback.
     func upload(
         imageData: Data,
@@ -50,7 +50,6 @@ class S3UploadService: NSObject {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("image/png", forHTTPHeaderField: "Content-Type")
-        request.setValue("public-read", forHTTPHeaderField: "x-amz-acl")
         request.setValue("\(imageData.count)", forHTTPHeaderField: "Content-Length")
 
         // Sign the request with AWS Signature V4
@@ -63,6 +62,27 @@ class S3UploadService: NSObject {
         let payloadHash = AWSV4Signer.sha256Hex(data: imageData)
         signer.sign(request: &request, payloadHash: payloadHash)
 
+        // Log full request details for debugging
+        print("[S3Upload] ---- REQUEST ----")
+        print("[S3Upload] \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "nil")")
+        print("[S3Upload] Image size: \(imageData.count) bytes")
+        if let headers = request.allHTTPHeaderFields {
+            for (name, value) in headers.sorted(by: { $0.key < $1.key }) {
+                // Mask the signature value for security but show everything else
+                if name == "Authorization" {
+                    let parts = value.split(separator: "Signature=")
+                    if parts.count == 2 {
+                        print("[S3Upload] \(name): \(parts[0])Signature=<\(parts[1].count) chars>")
+                    } else {
+                        print("[S3Upload] \(name): \(value)")
+                    }
+                } else {
+                    print("[S3Upload] \(name): \(value)")
+                }
+            }
+        }
+        print("[S3Upload] ---- END REQUEST ----")
+
         // Store progress handler for delegate callbacks
         self.progressHandler = progress
 
@@ -74,6 +94,13 @@ class S3UploadService: NSObject {
 
         let task = session!.uploadTask(with: request, from: imageData) { data, response, error in
             if let error = error {
+                print("[S3Upload] ---- NETWORK ERROR ----")
+                print("[S3Upload] \(error.localizedDescription)")
+                print("[S3Upload] \((error as NSError).domain) code=\((error as NSError).code)")
+                if let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? Error {
+                    print("[S3Upload] Underlying: \(underlying)")
+                }
+                print("[S3Upload] ---- END ERROR ----")
                 DispatchQueue.main.async {
                     completion(.failure(error))
                 }
@@ -81,20 +108,36 @@ class S3UploadService: NSObject {
             }
 
             guard let httpResponse = response as? HTTPURLResponse else {
+                print("[S3Upload] ERROR: Response was not an HTTPURLResponse")
                 DispatchQueue.main.async {
                     completion(.failure(S3UploadError.invalidResponse))
                 }
                 return
             }
 
+            print("[S3Upload] ---- RESPONSE ----")
+            print("[S3Upload] HTTP \(httpResponse.statusCode)")
+            for (name, value) in httpResponse.allHeaderFields {
+                print("[S3Upload] \(name): \(value)")
+            }
+
+            let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
+            if httpResponse.statusCode != 200 {
+                print("[S3Upload] Body: \(body)")
+            }
+            print("[S3Upload] ---- END RESPONSE ----")
+
             if httpResponse.statusCode == 200 {
-                let publicURL = "https://\(bucket).s3.\(region).amazonaws.com/\(key)"
+                // Generate a pre-signed GET URL for sharing
+                let presignedURL = signer.generatePresignedURL(
+                    bucket: bucket,
+                    key: key,
+                    expiresIn: settings.signedUrlExpiration
+                )
                 DispatchQueue.main.async {
-                    completion(.success(publicURL))
+                    completion(.success(presignedURL))
                 }
             } else {
-                let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
-                print("S3 upload failed with status \(httpResponse.statusCode): \(body)")
                 DispatchQueue.main.async {
                     completion(
                         .failure(

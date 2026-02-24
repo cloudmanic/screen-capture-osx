@@ -49,14 +49,26 @@ struct AWSV4Signer {
         let canonicalURI = url.path.isEmpty ? "/" : url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? url.path
         let canonicalQueryString = url.query ?? ""
 
-        // Collect and sort headers for signing
-        let signedHeaderNames = ["host", "x-amz-content-sha256", "x-amz-date"]
+        // Collect all headers, lowercase the names, and sort alphabetically for signing.
+        // AWS requires all x-amz-* headers and host to be signed.
+        var headerMap: [(name: String, value: String)] = []
+        if let allHeaders = request.allHTTPHeaderFields {
+            for (name, value) in allHeaders {
+                let lower = name.lowercased()
+                // Sign host and all x-amz-* headers, plus content-type
+                if lower == "host" || lower.hasPrefix("x-amz-") || lower == "content-type" {
+                    headerMap.append((name: lower, value: value.trimmingCharacters(in: .whitespaces)))
+                }
+            }
+        }
+        headerMap.sort { $0.name < $1.name }
+
+        let signedHeaderNames = headerMap.map { $0.name }
         let signedHeadersString = signedHeaderNames.joined(separator: ";")
 
         var canonicalHeaders = ""
-        for name in signedHeaderNames {
-            let value = request.value(forHTTPHeaderField: name) ?? ""
-            canonicalHeaders += "\(name):\(value.trimmingCharacters(in: .whitespaces))\n"
+        for header in headerMap {
+            canonicalHeaders += "\(header.name):\(header.value)\n"
         }
 
         let canonicalRequest = [
@@ -90,6 +102,83 @@ struct AWSV4Signer {
         let authorization =
             "\(algorithm) Credential=\(accessKey)/\(credentialScope), SignedHeaders=\(signedHeadersString), Signature=\(signature)"
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
+    }
+
+    /// Generates a pre-signed GET URL for an S3 object using query string authentication.
+    /// The URL allows anyone with it to download the object until it expires.
+    func generatePresignedURL(bucket: String, key: String, expiresIn: Int) -> String {
+        let now = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        dateFormatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        let amzDate = dateFormatter.string(from: now)
+
+        dateFormatter.dateFormat = "yyyyMMdd"
+        let dateStamp = dateFormatter.string(from: now)
+
+        let host = "\(bucket).s3.\(region).amazonaws.com"
+        let credentialScope = "\(dateStamp)/\(region)/\(service)/aws4_request"
+        let credential = "\(accessKey)/\(credentialScope)"
+
+        // URI-encode the object key (each path segment separately)
+        let encodedKey = key.split(separator: "/", omittingEmptySubsequences: false)
+            .map { segment in
+                segment.addingPercentEncoding(withAllowedCharacters: .s3Allowed) ?? String(segment)
+            }
+            .joined(separator: "/")
+        let canonicalURI = "/\(encodedKey)"
+
+        // Build canonical query string (parameters must be sorted by name)
+        let queryParams: [(String, String)] = [
+            ("X-Amz-Algorithm", "AWS4-HMAC-SHA256"),
+            ("X-Amz-Credential", credential),
+            ("X-Amz-Date", amzDate),
+            ("X-Amz-Expires", "\(expiresIn)"),
+            ("X-Amz-SignedHeaders", "host"),
+        ]
+
+        let canonicalQueryString = queryParams
+            .map { "\($0.0)=\(uriEncode($0.1))" }
+            .joined(separator: "&")
+
+        // Canonical headers and signed headers (only host for pre-signed URLs)
+        let canonicalHeaders = "host:\(host)\n"
+        let signedHeaders = "host"
+
+        // For pre-signed URLs the payload hash is always UNSIGNED-PAYLOAD
+        let payloadHash = "UNSIGNED-PAYLOAD"
+
+        let canonicalRequest = [
+            "GET",
+            canonicalURI,
+            canonicalQueryString,
+            canonicalHeaders,
+            signedHeaders,
+            payloadHash,
+        ].joined(separator: "\n")
+
+        // String to sign
+        let algorithm = "AWS4-HMAC-SHA256"
+        let canonicalRequestHash = sha256Hex(canonicalRequest)
+        let stringToSign = [
+            algorithm,
+            amzDate,
+            credentialScope,
+            canonicalRequestHash,
+        ].joined(separator: "\n")
+
+        // Derive signing key and calculate signature
+        let signingKey = deriveSigningKey(dateStamp: dateStamp)
+        let signature = hmacSHA256Hex(key: signingKey, data: stringToSign.data(using: .utf8)!)
+
+        return "https://\(host)\(canonicalURI)?\(canonicalQueryString)&X-Amz-Signature=\(signature)"
+    }
+
+    /// URI-encodes a string per AWS requirements (RFC 3986, with / NOT encoded).
+    private func uriEncode(_ string: String) -> String {
+        return string.addingPercentEncoding(withAllowedCharacters: .s3Allowed) ?? string
     }
 
     /// Derives the AWS SigV4 signing key by chaining HMAC-SHA256 operations:
@@ -127,4 +216,13 @@ struct AWSV4Signer {
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+}
+
+/// AWS-compatible character set for URI encoding (RFC 3986 unreserved characters).
+extension CharacterSet {
+    static let s3Allowed: CharacterSet = {
+        var allowed = CharacterSet()
+        allowed.insert(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        return allowed
+    }()
 }

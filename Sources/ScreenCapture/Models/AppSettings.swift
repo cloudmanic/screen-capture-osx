@@ -61,6 +61,15 @@ class AppSettings {
         set { defaults.set(newValue, forKey: Constants.Defaults.s3PathPrefix) }
     }
 
+    /// Pre-signed URL expiration time in seconds (default: 3600 = 1 hour).
+    var signedUrlExpiration: Int {
+        get {
+            let val = defaults.integer(forKey: Constants.Defaults.signedUrlExpiration)
+            return val > 0 ? val : Constants.DefaultValues.signedUrlExpiration
+        }
+        set { defaults.set(newValue, forKey: Constants.Defaults.signedUrlExpiration) }
+    }
+
     /// Returns true if all required AWS settings are configured.
     var isConfigured: Bool {
         return !awsAccessKey.isEmpty && !awsSecretKey.isEmpty && !s3Bucket.isEmpty && !awsRegion.isEmpty

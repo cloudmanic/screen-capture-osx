@@ -45,10 +45,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController.onSettingsRequested = { [weak self] in
             self?.settingsController.show()
         }
-
         // Wire up the overlay selection callbacks
-        overlayController.onSelectionComplete = { [weak self] rect in
-            self?.handleSelectionComplete(rect)
+        overlayController.onSelectionComplete = { [weak self] rect, windowID in
+            self?.handleSelectionComplete(rect, excludingWindow: windowID)
         }
         overlayController.onSelectionCancelled = {
             print("Selection cancelled")
@@ -60,7 +59,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeyService.register()
 
-        // Check screen recording permission on first launch
+        // Check screen recording permission on launch and prompt if not granted.
+        // This triggers the system dialog once upfront rather than failing silently on first capture.
         if !permissionManager.hasScreenRecordingPermission() {
             permissionManager.requestScreenRecordingPermission()
         }
@@ -83,27 +83,29 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Check permission
-        if !permissionManager.hasScreenRecordingPermission() {
-            permissionManager.showPermissionAlert()
-            return
-        }
-
         overlayController.showOverlay()
     }
 
     /// Handles a completed region selection: captures the screen, then uploads to S3.
-    private func handleSelectionComplete(_ rect: CGRect) {
-        // Small delay to let overlay windows fully close before capturing
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.performCapture(rect: rect)
-        }
+    /// The overlay controller has already hidden the overlay windows before calling this.
+    private func handleSelectionComplete(_ rect: CGRect, excludingWindow: CGWindowID) {
+        performCapture(rect: rect)
     }
 
     /// Captures the screen region and initiates the S3 upload with progress tracking.
     private func performCapture(rect: CGRect) {
-        guard let imageData = captureService.captureRegion(rect) else {
-            showError("Failed to capture screenshot")
+        let captureResult = captureService.captureRegion(rect)
+        let imageData: Data
+
+        switch captureResult {
+        case .success(let data):
+            imageData = data
+        case .failure(let error):
+            if case .permissionDenied = error {
+                permissionManager.showPermissionAlert()
+            } else {
+                showError(error.localizedDescription)
+            }
             return
         }
 
@@ -140,11 +142,17 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         print("Screenshot uploaded: \(url)")
     }
 
-    /// Handles a failed upload: shows error in HUD and logs the error.
+    /// Handles a failed upload: shows detailed error in HUD and logs the full error.
     private func handleUploadFailure(error: Error) {
-        let message = error.localizedDescription
-        progressHUD?.showError("Upload failed")
-        print("Upload failed: \(message)")
+        let message: String
+        if let s3Error = error as? S3UploadError {
+            message = s3Error.errorDescription ?? error.localizedDescription
+        } else {
+            message = error.localizedDescription
+        }
+        ClipboardManager.copyToClipboard(message)
+        progressHUD?.showError(message)
+        print("[ScreenCapture] Upload failed (copied to clipboard): \(message)")
     }
 
     // MARK: - UI Helpers

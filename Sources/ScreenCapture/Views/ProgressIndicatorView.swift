@@ -78,13 +78,48 @@ class ProgressHUDWindow: NSPanel {
         }
     }
 
-    /// Shows an error message briefly, then dismisses the HUD after a delay.
+    /// Shows an error message in the HUD, then dismisses after a delay.
+    /// The HUD expands to fit longer error messages.
     func showError(_ message: String) {
-        statusLabel.stringValue = message
+        // Expand the window to fit error text
+        let maxWidth: CGFloat = 360
+        let padding: CGFloat = 16
+        let textWidth = maxWidth - padding * 2
+
+        // Calculate how tall the text needs to be
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .regular)
+        ]
+        let textRect = (message as NSString).boundingRect(
+            with: NSSize(width: textWidth, height: 200),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        )
+        let textHeight = max(ceil(textRect.height), 20)
+        let newHeight = 80 + 10 + textHeight + 16
+
+        // Resize the window
+        var frame = self.frame
+        let oldWidth = frame.width
+        frame.size.width = maxWidth
+        frame.size.height = newHeight
+        frame.origin.x -= (maxWidth - oldWidth)
+        self.setFrame(frame, display: false)
+
+        // Reposition progress view (smaller, centered)
+        progressView.frame = NSRect(
+            x: (maxWidth - 50) / 2, y: newHeight - 70, width: 50, height: 50)
         progressView.showError = true
         progressView.needsDisplay = true
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+        // Resize and reposition label to show full error
+        statusLabel.frame = NSRect(x: padding, y: 10, width: textWidth, height: textHeight)
+        statusLabel.maximumNumberOfLines = 0
+        statusLabel.lineBreakMode = .byWordWrapping
+        statusLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        statusLabel.stringValue = message
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
             self?.dismiss()
         }
     }

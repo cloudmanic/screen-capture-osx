@@ -11,7 +11,7 @@
 
 cask "screen-capture" do
   version "1.0.0"
-  sha256 "f449587bfa2ca01feaa15e651c837702a1ac5611f9f4abeb5d0d08c06b73e318"
+  sha256 "4a87f28c6c2a6fc390100ccfeec7b04e636197f93b895d8ece629afad91575af"
 
   url "https://github.com/cloudmanic/screen-capture-osx/releases/download/v#{version}/ScreenCapture-#{version}.zip"
   name "ScreenCapture"

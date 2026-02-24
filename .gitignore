@@ -1,0 +1,7 @@
+.build/
+ScreenCapture.app/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+.DS_Store

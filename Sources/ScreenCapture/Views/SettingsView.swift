@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var s3PathPrefix: String = AppSettings.shared.s3PathPrefix
     @State private var soundEnabled: Bool = AppSettings.shared.soundEnabled
     @State private var signedUrlExpiration: Int = AppSettings.shared.signedUrlExpiration
+    @State private var launchAtLogin: Bool = AppSettings.shared.launchAtLogin
     @State private var testResult: String = ""
     @State private var isTesting: Bool = false
 
@@ -92,8 +93,9 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Sound Section
-                Section("Sound") {
+                // General Section
+                Section("General") {
+                    Toggle("Launch at login", isOn: $launchAtLogin)
                     Toggle("Play sound on upload complete", isOn: $soundEnabled)
                 }
 
@@ -155,6 +157,7 @@ struct SettingsView: View {
         AppSettings.shared.s3PathPrefix = s3PathPrefix
         AppSettings.shared.signedUrlExpiration = signedUrlExpiration
         AppSettings.shared.soundEnabled = soundEnabled
+        AppSettings.shared.launchAtLogin = launchAtLogin
 
         // Close the settings window
         NSApp.keyWindow?.close()

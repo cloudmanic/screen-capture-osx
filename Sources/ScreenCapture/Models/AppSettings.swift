@@ -12,6 +12,7 @@
 
 import Foundation
 import Security
+import ServiceManagement
 
 /// Manages all user-configurable settings for the app.
 class AppSettings {
@@ -68,6 +69,22 @@ class AppSettings {
             return val > 0 ? val : Constants.DefaultValues.signedUrlExpiration
         }
         set { defaults.set(newValue, forKey: Constants.Defaults.signedUrlExpiration) }
+    }
+
+    /// Whether the app should launch at login. Reads from SMAppService and registers/unregisters accordingly.
+    var launchAtLogin: Bool {
+        get { SMAppService.mainApp.status == .enabled }
+        set {
+            do {
+                if newValue {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                print("[AppSettings] Failed to \(newValue ? "enable" : "disable") launch at login: \(error)")
+            }
+        }
     }
 
     /// Returns true if all required AWS settings are configured.

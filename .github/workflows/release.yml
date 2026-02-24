@@ -1,0 +1,73 @@
+#
+# File: release.yml
+# Project: ScreenCapture
+#
+# Description: Builds, signs, zips, and publishes a GitHub release on every push
+# to main. Updates the Homebrew Cask formula with the new sha256. Uses the version
+# from Info.plist as the release tag.
+#
+# Created: 2026-02-24
+# Copyright 2026 Cloudmanic Labs, LLC. All rights reserved.
+#
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'Casks/**'
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from Info.plist
+        id: version
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build and sign
+        run: make sign
+
+      - name: Create release zip
+        run: zip -r "ScreenCapture-${{ steps.version.outputs.version }}.zip" ScreenCapture.app
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          SHA=$(shasum -a 256 "ScreenCapture-${{ steps.version.outputs.version }}.zip" | awk '{print $1}')
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Delete existing release if present
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete "v${{ steps.version.outputs.version }}" --yes 2>/dev/null || true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            "ScreenCapture-${{ steps.version.outputs.version }}.zip" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --generate-notes
+
+      - name: Update Cask formula
+        run: |
+          sed -i '' 's/version ".*"/version "${{ steps.version.outputs.version }}"/' Casks/screen-capture.rb
+          sed -i '' 's/sha256 ".*"/sha256 "${{ steps.sha.outputs.sha256 }}"/' Casks/screen-capture.rb
+
+      - name: Commit and push Cask update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/screen-capture.rb
+          git diff --cached --quiet || git commit -m "Update Cask formula for v${{ steps.version.outputs.version }}"
+          git push
